@@ -171,6 +171,9 @@ def get_lightning_module(model_type: str, data_config: dict, model_config: dict,
     module_config["batch_size"] = training_config["batch_size"]
     module_config["control_pert"] = data_config.get("control_pert", "non-targeting")
 
+    # var_dims["pert_dim"] = 1138 # TODO: hardcode for loading tahoe weights for now, remove this
+    # var_dims["input_dim"] = 2000 # TODO: hardcode for loading tahoe weights for now, remove this
+
     if data_config["output_space"] == "gene":
         gene_dim = var_dims["hvg_dim"]
     else:

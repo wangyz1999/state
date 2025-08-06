@@ -209,7 +209,7 @@ class StateTransitionPerturbationModel(PerturbationModel):
         if self.freeze_pert_backbone:
             modules_to_freeze = [
                 self.transformer_backbone,
-                self.project_out,
+                # self.project_out,
             ]
             for module in modules_to_freeze:
                 for param in module.parameters():

@@ -11,3 +11,10 @@ src/state/configs/wandb/*
 tmp/
 notebooks/
 *.sif
+
+wandb/
+SE-600M/
+competition/
+competition_support_set/
+*.ckpt
+*.pt

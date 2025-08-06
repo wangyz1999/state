@@ -1,0 +1,15 @@
+CUDA_VISIBLE_DEVICES=7 uv run state tx train \
+  data.kwargs.toml_config_path="competition_support_set/starter.toml" \
+  data.kwargs.num_workers=32 \
+  data.kwargs.output_space="gene" \
+  data.kwargs.batch_col="batch_var" \
+  data.kwargs.pert_col="target_gene" \
+  data.kwargs.cell_type_key="cell_type" \
+  data.kwargs.control_pert="non-targeting" \
+  data.kwargs.perturbation_features_file="competition_support_set/ESM2_pert_features.pt" \
+  training.max_steps=40000 \
+  training.ckpt_every_n_steps=200 \
+  model=state_sm_tahoe \
+  wandb.tags="[state_tahoe_freeze_middle]" \
+  output_dir="competition" \
+  name="state_tahoe_freeze_middle"
