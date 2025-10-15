@@ -139,11 +139,11 @@ def get_checkpoint_callbacks(output_dir: str, name: str, val_freq: int, ckpt_eve
     # Save best checkpoint based on validation loss
     best_ckpt = ModelCheckpoint(
         dirpath=checkpoint_dir,
-        filename="step={step}-val_loss={val_loss:.4f}",
+        filename="step={step}-de={val/overlap_at_N:.4f}-pd={val/discrimination_score_l1:.4f}-mae={val/mae:.4f}-oa={val/overall_score:.4f}",
         save_last="link",  # Will create last.ckpt symlink to best checkpoint
-        monitor="val_loss",
-        mode="min",
-        save_top_k=1,  # Only keep the best checkpoint
+        monitor="val/overall_score",
+        mode="max",
+        save_top_k=3,  # Only keep the best checkpoint
         every_n_train_steps=val_freq,
     )
     callbacks.append(best_ckpt)

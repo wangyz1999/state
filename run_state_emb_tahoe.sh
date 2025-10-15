@@ -1,0 +1,16 @@
+CUDA_VISIBLE_DEVICES=4 uv run state tx train \
+  data.kwargs.toml_config_path="competition_support_set/fewshot_val_overlap.toml" \
+  data.kwargs.num_workers=8 \
+  data.kwargs.batch_col="batch_var" \
+  data.kwargs.pert_col="target_gene" \
+  data.kwargs.cell_type_key="cell_type" \
+  data.kwargs.control_pert="non-targeting" \
+  data.kwargs.embed_key="X_state" \
+  data.kwargs.perturbation_features_file="competition_support_set/ESM2_pert_features.pt" \
+  training.max_steps=40000 \
+  training.val_freq=200 \
+  training.ckpt_every_n_steps=4000 \
+  model=state_sm_tahoe \
+  wandb.tags="[state_emb_fewshot_val_overlap]" \
+  output_dir="competition" \
+  name="state_sm_tahoe_emb_fewshot_val_overlap"

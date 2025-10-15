@@ -120,6 +120,13 @@ def run_tx_train(cfg: DictConfig):
     print("batch size:", dl.batch_size)
 
     var_dims = data_module.get_var_dims()  # {"gene_dim": …, "hvg_dim": …}
+    
+    print("var_dims:")
+    print(var_dims.keys())
+    for k, v in var_dims.items():
+        if len(str(v)) < 300:
+            print(f"{k}: {v}")
+    
     if cfg["data"]["kwargs"]["output_space"] == "gene":
         gene_dim = var_dims.get("hvg_dim", 2000)  # fallback if key missing
     else:

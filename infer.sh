@@ -1,6 +1,7 @@
 CUDA_VISIBLE_DEVICES=7 uv run state tx infer \
-  --output "competition/state_tahoe_freeze_middle/pred_6000.h5ad" \
-  --model_dir "competition/state_tahoe_freeze_middle" \
-  --checkpoint "competition/state_tahoe_freeze_middle/checkpoints/step=6000.ckpt" \
-  --adata "competition_support_set/competition_val_template.h5ad" \
+  --output "competition/state_sm_emb/step=step=8800-val_loss=val_loss=1.0023.h5ad" \
+  --embed_key "X_state" \
+  --model_dir "competition/state_sm_emb" \
+  --checkpoint "competition/state_sm_emb/checkpoints/step=step=8800-val_loss=val_loss=1.0023.ckpt" \
+  --adata "data_state_emb/competition_val_template.h5ad" \
   --pert_col "target_gene"

@@ -7,7 +7,7 @@ kwargs:
   blur: 0.05
   hidden_dim: 1488  # hidden dimension going into the transformer backbone
   loss: energy
-  freeze_pert_backbone: True
+  freeze_pert_backbone: False
   confidence_head: False
   n_encoder_layers: 4
   n_decoder_layers: 4
@@ -22,8 +22,8 @@ kwargs:
   mask_attn: False
   use_effect_gating_token: False
   distributional_loss: energy
-  gene_decoder_bool: False
-  init_from: /home/wyunzhe/projects/state/tahoe_final.ckpt
+  gene_decoder_bool: True
+  init_from: null
   transformer_backbone_key: llama
   transformer_backbone_kwargs:
       max_position_embeddings: 256

@@ -1,12 +1,13 @@
-name: state
+name: PertSets
 checkpoint: null
 device: cuda
 
 kwargs:
-  cell_set_len: 128
+  cell_set_len: 256
   blur: 0.05
-  hidden_dim: 672  # hidden dimension going into the transformer backbone
+  hidden_dim: 1488  # hidden dimension going into the transformer backbone
   loss: energy
+  freeze_pert_backbone: True
   confidence_head: False
   n_encoder_layers: 4
   n_decoder_layers: 4
@@ -20,18 +21,18 @@ kwargs:
   nb_decoder: False
   mask_attn: False
   use_effect_gating_token: False
-  use_basal_projection: False
   distributional_loss: energy
-  init_from: null
+  gene_decoder_bool: True
+  init_from: /home/wyunzhe/projects/state/tahoe_final.ckpt
   transformer_backbone_key: llama
   transformer_backbone_kwargs:
-      max_position_embeddings: ${model.kwargs.cell_set_len}
-      hidden_size: ${model.kwargs.hidden_dim}
-      intermediate_size: 2688
-      num_hidden_layers: 4
-      num_attention_heads: 8
-      num_key_value_heads: 8
-      head_dim: 84
+      max_position_embeddings: 256
+      hidden_size: 1488
+      intermediate_size: 5952
+      num_hidden_layers: 6
+      num_attention_heads: 12
+      num_key_value_heads: 12
+      head_dim: 124
       use_cache: false
       attention_dropout: 0.0
       hidden_dropout: 0.0

@@ -5,9 +5,11 @@ import anndata as ad
 import numpy as np
 import torch
 import torch.nn as nn
+import pandas as pd
 
 from geomloss import SamplesLoss
 from typing import Tuple
+from cell_eval import MetricsEvaluator
 
 from .base import PerturbationModel
 from .decoders import FinetuneVCICountsDecoder
@@ -209,7 +211,7 @@ class StateTransitionPerturbationModel(PerturbationModel):
         if self.freeze_pert_backbone:
             modules_to_freeze = [
                 self.transformer_backbone,
-                # self.project_out,
+                self.project_out,
             ]
             for module in modules_to_freeze:
                 for param in module.parameters():
@@ -425,6 +427,18 @@ class StateTransitionPerturbationModel(PerturbationModel):
             pred = self.forward(batch, padded=padded)
 
         target = batch["pert_cell_emb"]
+        
+        # print("batch:")
+        # print(batch.keys())
+        # for k, v in batch.items():
+        #     if isinstance(v, (list, tuple)):
+        #         print(f"{k}: list/tuple of len {len(v)}")
+        #     elif hasattr(v, "shape"):
+        #         print(f"{k}: tensor shape {v.shape}")
+        #     else:
+        #         print(f"{k}: type {type(v)}")
+        # print("pred: ", pred.shape)
+        # print("target: ", target.shape) 
 
         if padded:
             pred = pred.reshape(-1, self.cell_sentence_len, self.output_dim)
@@ -447,6 +461,12 @@ class StateTransitionPerturbationModel(PerturbationModel):
         decoder_loss = None
         total_loss = main_loss
 
+
+        # print("self.gene_decoder: ", self.gene_decoder)
+        # print("batch: ", batch.keys())
+        # print("pert_cell_counts: ", batch["pert_cell_counts"].shape)
+        # print("pred: ", pred.shape)
+        # print("target: ", target.shape)
         if self.gene_decoder is not None and "pert_cell_counts" in batch:
             gene_targets = batch["pert_cell_counts"]
             # Train decoder to map latent predictions to gene space
@@ -554,10 +574,23 @@ class StateTransitionPerturbationModel(PerturbationModel):
                 )
                 gene_targets = gene_targets.reshape(-1, self.cell_sentence_len, self.gene_decoder.gene_dim())
                 decoder_loss = self.loss_fn(pert_cell_counts_preds, gene_targets).mean()
+                self._val_preds.append(pert_cell_counts_preds.reshape(-1, self.gene_decoder.gene_dim()).detach().cpu().numpy())
+                self._val_targets.append(gene_targets.reshape(-1, self.gene_decoder.gene_dim()).detach().cpu().numpy())
+
+                pert_names = [i.item() for i in batch["pert_name"]]
+                cell_types = [i.item() for i in batch["cell_type"]]
+                self._val_pert_names.extend(pert_names)
+                self._val_cell_types.extend(cell_types)
 
             # Log the validation metric
             self.log("val/decoder_loss", decoder_loss)
             loss = loss + self.decoder_loss_weight * decoder_loss
+        else:
+            _, _, gen_dim = pred.shape
+            self._val_preds.append(pred.reshape(-1, gen_dim).detach().cpu().numpy())
+            self._val_targets.append(target.reshape(-1, gen_dim).detach().cpu().numpy())
+            self._val_pert_names.extend([i.item() for i in batch["pert_name"]])
+            self._val_cell_types.extend([i.item() for i in batch["cell_type"]])
 
         if confidence_pred is not None:
             # Detach main loss to prevent gradients flowing through it
@@ -639,3 +672,94 @@ class StateTransitionPerturbationModel(PerturbationModel):
             output_dict["pert_cell_counts_preds"] = pert_cell_counts_preds
 
         return output_dict
+    
+    def on_validation_epoch_start(self):
+        self._val_preds = []
+        self._val_targets = []
+        self._val_pert_names = []
+        self._val_cell_types = []
+    
+    def on_validation_epoch_end(self):
+        # Only run evaluation if we have decoder predictions
+        if not hasattr(self, '_val_preds') or not self._val_preds:
+            return
+            
+        preds = np.concatenate(self._val_preds, axis=0)
+        targets = np.concatenate(self._val_targets, axis=0)
+        
+        pert_names = self._val_pert_names
+        for pert_idx, pert_name in enumerate(pert_names):
+            if pert_name == "non-targeting":
+                pert_names[pert_idx] = "control"
+        
+        # Create AnnData objects for evaluation
+        # Use predictions as adata_pred and targets as adata_real
+        n_cells_pred, n_genes = preds.shape
+        n_cells_target = targets.shape[0]
+        
+        # Create adata_pred from predictions
+        adata_pred = ad.AnnData(
+            X=preds,
+            obs=pd.DataFrame({
+                'perturbation': pert_names,  # Dummy perturbation labels
+                'cell_type': self._val_cell_types,  # Dummy cell type labels
+            }, index=np.arange(n_cells_pred).astype(str))
+        )
+        
+        # Create adata_real from targets  
+        adata_real = ad.AnnData(
+            X=targets,
+            obs=pd.DataFrame({
+                'perturbation': pert_names,  # Use control as reference
+                'cell_type': self._val_cell_types,  # Dummy cell type labels
+            }, index=np.arange(n_cells_target).astype(str))
+        )
+        
+        evaluator = MetricsEvaluator(
+            adata_pred=adata_pred,
+            adata_real=adata_real,
+            control_pert="control",
+            pert_col="perturbation",
+            num_threads=8,
+            outdir=None,
+        )
+        results, agg_results = evaluator.compute(write_csv=False, profile="vcc")
+        # Log mean and std of each metric to wandb as self.log("val/metric")
+        for metric in ["overlap_at_N", "mae", "discrimination_score_l1"]:
+            mean_val = agg_results.filter(agg_results["statistic"] == "mean")[metric].item()
+            std_val = agg_results.filter(agg_results["statistic"] == "std")[metric].item()
+            self.log(f"val/{metric}", mean_val)
+            self.log(f"val_std/{metric}", std_val)
+
+        overall_score = self.calculate_overall_score(
+            des_pred=agg_results.filter(agg_results["statistic"] == "mean")["overlap_at_N"].item(),
+            pds_pred=agg_results.filter(agg_results["statistic"] == "mean")["discrimination_score_l1"].item(),
+            mae_pred=agg_results.filter(agg_results["statistic"] == "mean")["mae"].item()
+        )
+        self.log("val/overall_score", overall_score)
+        
+            
+    @staticmethod
+    def calculate_overall_score(des_pred, pds_pred, mae_pred):
+        # Baseline constants
+        DES_b = 0.106
+        PDS_b = 0.516
+        MAE_b = 0.027
+
+        # Calculate scaled DES
+        des_scaled = (des_pred - DES_b) / (1 - DES_b) if des_pred > DES_b else 0
+
+        # Calculate scaled PDS
+        pds_scaled = (pds_pred - PDS_b) / (1 - PDS_b) if pds_pred > PDS_b else 0
+
+        # Calculate scaled MAE
+        mae_scaled = (MAE_b - mae_pred) / MAE_b if mae_pred < MAE_b else 0
+
+        # Clip any negatives
+        des_scaled = max(des_scaled, 0)
+        pds_scaled = max(pds_scaled, 0)
+        mae_scaled = max(mae_scaled, 0)
+
+        # Overall score
+        overall = (des_scaled + pds_scaled + mae_scaled) / 3
+        return overall
